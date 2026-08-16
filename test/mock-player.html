@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>B站播放器模拟页 - 扩展本地测试</title>
+  <style>
+    body {
+      background: #101014;
+      color: #eee;
+      font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+      padding: 24px;
+    }
+    .player { width: 720px; }
+    video { width: 100%; background: #000; display: block; }
+    /* 模拟 bpx 播放器控制栏 */
+    .bpx-player-control-bottom {
+      display: flex;
+      align-items: stretch;
+      height: 38px;
+      background: #1c1c22;
+    }
+    .bpx-player-control-bottom-left {
+      display: flex; align-items: center; padding: 0 10px; color: #fff; font-size: 14px;
+    }
+    .bpx-player-control-bottom-right {
+      margin-left: auto;
+      display: flex;
+      align-items: stretch;
+      height: 100%;
+    }
+    .bpx-player-ctrl-btn {
+      display: flex; align-items: center; padding: 0 12px;
+      color: #fff; font-size: 14px; user-select: none; cursor: pointer;
+    }
+    .bpx-player-ctrl-btn:hover { background: rgba(255,255,255,.15); }
+    p.note { color: #888; font-size: 12px; }
+  </style>
+  <link rel="stylesheet" href="../content.css">
+</head>
+<body>
+  <h2>模拟B站播放器控制栏（本地测试页）</h2>
+  <p class="note">
+    本页面用相同的 DOM 类名模拟B站播放器控制栏，并注入 chrome.storage 桩（秒数 30、快捷键 Shift+→），
+    用于在不加载扩展的情况下验证 content.js 的按钮插入位置与快进逻辑。
+  </p>
+  <div class="player">
+    <div class="bpx-player-video-wrap">
+      <video id="video" controls preload="metadata"
+             src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
+    </div>
+    <div class="bpx-player-control-bottom">
+      <div class="bpx-player-control-bottom-left">▶ 00:00 / 09:56</div>
+      <div class="bpx-player-control-bottom-right">
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-volume">音量</div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-quality">1080P 高清</div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-setting">设置</div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-full">全屏</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // chrome.storage 桩：模拟扩展存储（30 秒配置，用于验证配置接线）
+    window.__bffSaved = null;
+    window.chrome = {
+      storage: {
+        sync: {
+          get: (defaults) =>
+            Promise.resolve({
+              seconds: 30,
+              shortcut: { key: 'arrowright', code: 'ArrowRight', ctrl: false, alt: false, shift: true },
+            }),
+          set: (obj) => { window.__bffSaved = obj; return Promise.resolve(); },
+        },
+        onChanged: { addListener: () => {} },
+      },
+    };
+
+    // 离线兜底：若远端测试视频元数据在 6 秒内不可用（网络受限），
+    // 给 video 安装影子 duration/currentTime，使快进逻辑仍可被验证
+    window.__bffTest = { mode: 'real', seeks: [] };
+    (function () {
+      const v = document.getElementById('video');
+      const installFake = () => {
+        if (window.__bffTest.mode !== 'real' || v.readyState >= 1) return;
+        window.__bffTest.mode = 'fake';
+        v.removeAttribute('src');
+        try { v.load(); } catch (e) { /* ignore */ }
+        let t = 0;
+        Object.defineProperty(v, 'duration', { configurable: true, get: () => 600 });
+        Object.defineProperty(v, 'currentTime', {
+          configurable: true,
+          get: () => t,
+          set: (val) => { t = val; window.__bffTest.seeks.push(val); },
+        });
+      };
+      if (v.readyState < 1) setTimeout(installFake, 6000);
+    })();
+  </script>
+  <script src="../content.js"></script>
+
+  <h3>测试状态（自动刷新）</h3>
+  <pre id="bff-status">等待视频…</pre>
+  <p>
+    <input id="chat" type="text" placeholder="模拟弹幕/搜索输入框（在此打字时快捷键不应触发）">
+  </p>
+
+  <script>
+    // 把视频状态渲染到可见 DOM，便于自动化只读断言（避免使用 evaluate）
+    (function () {
+      const v = document.getElementById('video');
+      const el = document.getElementById('bff-status');
+      const fmt = () => {
+        try {
+          el.textContent = JSON.stringify({
+            mode: window.__bffTest.mode,
+            readyState: v.readyState,
+            currentTime: Number(v.currentTime.toFixed(2)),
+            duration: isFinite(v.duration) ? Math.round(v.duration) : null,
+            seeks: window.__bffTest.seeks.map((x) => Math.round(x * 10) / 10),
+          });
+        } catch (e) {
+          el.textContent = 'status-error: ' + e.message;
+        }
+      };
+      v.addEventListener('seeked', fmt);
+      setInterval(fmt, 400);
+    })();
+  </script>
+</body>
+</html>
