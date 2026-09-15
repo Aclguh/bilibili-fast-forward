@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "B站一键快进",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "在B站播放器「清晰度」选项左侧添加一键快进按钮，支持自定义触发快捷键与快进秒数（默认85秒）。",
   "icons": {
     "16": "icons/icon16.png",

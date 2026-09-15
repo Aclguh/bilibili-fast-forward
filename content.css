@@ -5,6 +5,12 @@
    优先级(0,3,0)高于自定义单类(0,1,0)，自定高度在全屏下必然失效并下沉。
    这里只补充图标位放不下文字时所需的悬浮提示。 */
 
+/* 与B站 `.bpx-player-ctrl-btn{fill:#fff}` 同值：仅在其样式表尚未注入的短暂
+   窗口里兜底，避免图标渲染成纯黑大块；取值一致故不存在覆盖顺序问题 */
+.bff-ctrl-btn {
+  fill: #fff;
+}
+
 .bff-ctrl-btn .bff-btn-tip {
   position: absolute;
   left: 50%;
