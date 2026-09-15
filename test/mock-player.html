@@ -12,27 +12,71 @@
     }
     .player { width: 720px; }
     video { width: 100%; background: #000; display: block; }
-    /* 模拟 bpx 播放器控制栏 */
+    .mode-bar { margin: 12px 0; }
+    .mode-bar button { margin-right: 8px; }
+    /* 网页全屏预览：不依赖 Fullscreen API，仅把播放器铺满视口 */
+    .player[data-screen="web"] {
+      position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 99999; background: #000;
+    }
+
+    /* ===== 以下控制栏规则从B站播放器实际样式表原样摘录（实测 computed 值一致） ===== */
     .bpx-player-control-bottom {
+      box-sizing: border-box;
       display: flex;
-      align-items: stretch;
-      height: 38px;
+      justify-content: space-between;
+      height: 35px;
+      line-height: 22px;
+      margin: 20px 0 0;
+      padding: 0 12px;
+      width: 100%;
       background: #1c1c22;
     }
-    .bpx-player-control-bottom-left {
-      display: flex; align-items: center; padding: 0 10px; color: #fff; font-size: 14px;
-    }
-    .bpx-player-control-bottom-right {
-      margin-left: auto;
-      display: flex;
-      align-items: stretch;
-      height: 100%;
-    }
+    .bpx-player-control-bottom-left { display: inline-flex; flex: 0 0 auto; color: #fff; }
+    .bpx-player-ctrl-time { font-size: 14px; line-height: 22px; color: rgba(255,255,255,.8); }
+    .bpx-player-control-bottom-right { display: flex; justify-content: flex-end; }
     .bpx-player-ctrl-btn {
-      display: flex; align-items: center; padding: 0 12px;
-      color: #fff; font-size: 14px; user-select: none; cursor: pointer;
+      fill: #fff;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0;
+      height: 22px;
+      line-height: 22px;
+      outline: 0;
+      position: relative;
+      text-align: center;
+      width: 36px;
+      z-index: 2;
     }
-    .bpx-player-ctrl-btn:hover { background: rgba(255,255,255,.15); }
+    .bpx-player-ctrl-btn-icon { cursor: pointer; width: 100%; }
+    .bpx-common-svg-icon { display: inline-flex; height: 100%; width: 100%; user-select: none; }
+    .bpx-common-svg-icon svg { height: 100%; width: 100%; }
+    .bpx-player-ctrl-btn-icon > .bpx-common-svg-icon { height: 22px; opacity: .9; vertical-align: middle; }
+    .bpx-player-ctrl-btn:hover { color: #fff; }
+    .bpx-player-ctrl-btn:hover .bpx-player-ctrl-btn-icon > .bpx-common-svg-icon { opacity: 1; }
+    .bpx-player-ctrl-quality { width: auto; margin-right: 10px; }
+    .bpx-player-ctrl-quality-result { font-size: 12px; }
+
+    /* 真实B站把这三条包在 @media screen and (min-width:750px) 里；
+       mock 去掉媒体查询条件，保证任意窗口尺寸都能复现全屏几何 */
+    .bpx-player-container[data-screen="full"] .bpx-player-control-bottom,
+    .bpx-player-container[data-screen="web"] .bpx-player-control-bottom {
+      height: 45px;
+      line-height: 34px;
+    }
+    .bpx-player-container[data-screen="full"] .bpx-player-ctrl-btn,
+    .bpx-player-container[data-screen="web"] .bpx-player-ctrl-btn {
+      height: 43px;
+      line-height: 32px;
+      width: 54px;
+    }
+    .bpx-player-container[data-screen="full"] .bpx-player-ctrl-btn-icon > .bpx-common-svg-icon,
+    .bpx-player-container[data-screen="web"] .bpx-player-ctrl-btn-icon > .bpx-common-svg-icon {
+      height: 28px;
+    }
+    .bpx-player-container[data-screen="full"] .bpx-player-ctrl-time,
+    .bpx-player-container[data-screen="web"] .bpx-player-ctrl-time {
+      font-size: 14px;
+      line-height: 32px;
+    }
     p.note { color: #888; font-size: 12px; }
   </style>
   <link rel="stylesheet" href="../content.css">
@@ -40,21 +84,42 @@
 <body>
   <h2>模拟B站播放器控制栏（本地测试页）</h2>
   <p class="note">
-    本页面用相同的 DOM 类名模拟B站播放器控制栏，并注入 chrome.storage 桩（秒数 30、快捷键 Shift+→），
-    用于在不加载扩展的情况下验证 content.js 的按钮插入位置与快进逻辑。
+    本页面按类名与几何规则复刻B站播放器控制栏（含 <code>[data-screen]</code> 全屏尺寸规则），
+    并注入 chrome.storage 桩（秒数 30、快捷键 Shift+→）。
+    下方「图标对齐」读数即回归判据：我们注入的图标中心与各原生图标中心的偏差应为 0px；
+    旧版把按钮写成 <code>height:100%</code> 时，普通模式偏 7px、全屏偏 ~13px。
   </p>
-  <div class="player">
+  <div class="mode-bar">
+    模式：
+    <button id="m-normal" type="button">普通</button>
+    <button id="m-web" type="button">网页全屏</button>
+    <button id="m-full" type="button">全屏(Fullscreen API)</button>
+  </div>
+  <div class="player bpx-player-container" id="player" data-screen="normal">
     <div class="bpx-player-video-wrap">
       <video id="video" controls preload="metadata"
              src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
     </div>
     <div class="bpx-player-control-bottom">
-      <div class="bpx-player-control-bottom-left">▶ 00:00 / 09:56</div>
+      <div class="bpx-player-control-bottom-left">
+        <span class="bpx-player-ctrl-time">00:00 / 09:56</span>
+      </div>
       <div class="bpx-player-control-bottom-right">
-        <div class="bpx-player-ctrl-btn bpx-player-ctrl-volume">音量</div>
-        <div class="bpx-player-ctrl-btn bpx-player-ctrl-quality">1080P 高清</div>
-        <div class="bpx-player-ctrl-btn bpx-player-ctrl-setting">设置</div>
-        <div class="bpx-player-ctrl-btn bpx-player-ctrl-full">全屏</div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-volume" role="button" aria-label="音量">
+          <div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg viewBox="0 0 88 88"><path d="M18 34h12l16-14v52L30 58H18z"></path></svg></span></div>
+        </div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-quality" role="button" aria-label="清晰度">
+          <div class="bpx-player-ctrl-quality-result"><span class="bpx-player-ctrl-quality-result-name">自动</span></div>
+        </div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-setting" role="button" aria-label="设置">
+          <div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg viewBox="0 0 88 88"><circle cx="44" cy="44" r="12"></circle></svg></span></div>
+        </div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-pip" role="button" aria-label="画中画">
+          <div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg viewBox="0 0 88 88"><rect x="16" y="22" width="56" height="44" fill="none" stroke="#fff" stroke-width="6"></rect></svg></span></div>
+        </div>
+        <div class="bpx-player-ctrl-btn bpx-player-ctrl-full" role="button" aria-label="全屏">
+          <div class="bpx-player-ctrl-btn-icon"><span class="bpx-common-svg-icon"><svg viewBox="0 0 88 88"><path d="M20 20h18v8H28v10h-8zM68 20v18h-8V28H50v-8zM20 68V50h8v10h10v8zM68 68H50v-8h10V50h8z"></path></svg></span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -65,7 +130,7 @@
     window.chrome = {
       storage: {
         sync: {
-          get: (defaults) =>
+          get: () =>
             Promise.resolve({
               seconds: 30,
               shortcut: { key: 'arrowright', code: 'ArrowRight', ctrl: false, alt: false, shift: true },
@@ -96,6 +161,17 @@
       };
       if (v.readyState < 1) setTimeout(installFake, 6000);
     })();
+
+    // 模式切换：改 data-screen 即可切换控制栏几何
+    const player = document.getElementById('player');
+    const setScreen = (s) => {
+      player.dataset.screen = s;
+      if (s === 'full' && player.requestFullscreen) player.requestFullscreen().catch(() => {});
+      else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+    document.getElementById('m-normal').addEventListener('click', () => setScreen('normal'));
+    document.getElementById('m-web').addEventListener('click', () => setScreen('web'));
+    document.getElementById('m-full').addEventListener('click', () => setScreen('full'));
   </script>
   <script src="../content.js"></script>
 
@@ -106,19 +182,33 @@
   </p>
 
   <script>
-    // 把视频状态渲染到可见 DOM，便于自动化只读断言（避免使用 evaluate）
+    // 把视频状态与图标对齐偏差渲染到可见 DOM，便于自动化只读断言（避免使用 evaluate）
     (function () {
       const v = document.getElementById('video');
       const el = document.getElementById('bff-status');
+      const cy = (n) => { const r = n.getBoundingClientRect(); return r.top + r.height / 2; };
       const fmt = () => {
         try {
+          const ours = document.querySelector('.bff-ctrl-btn .bpx-common-svg-icon');
+          const refs = Array.from(
+            document.querySelectorAll('.bpx-player-ctrl-btn:not(.bff-ctrl-btn) .bpx-common-svg-icon')
+          );
+          let drift = null;
+          if (ours && refs.length) {
+            const oc = cy(ours);
+            drift = Math.max(...refs.map((n) => Math.abs(cy(n) - oc)));
+            drift = Math.round(drift * 10) / 10;
+          }
           el.textContent = JSON.stringify({
             mode: window.__bffTest.mode,
+            screen: player.dataset.screen,
             readyState: v.readyState,
             currentTime: Number(v.currentTime.toFixed(2)),
             duration: isFinite(v.duration) ? Math.round(v.duration) : null,
             seeks: window.__bffTest.seeks.map((x) => Math.round(x * 10) / 10),
-          });
+            iconCenterDriftPx: drift,
+            alignOk: drift !== null && drift < 1,
+          }, null, 1);
         } catch (e) {
           el.textContent = 'status-error: ' + e.message;
         }

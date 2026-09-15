@@ -7,7 +7,47 @@
   };
 
   const BTN_CLASS = 'bff-ctrl-btn';
-  const BTN_TEXT_CLASS = 'bff-btn-text';
+  const ICON_CLASS = 'bff-btn-icon';
+  const TIP_CLASS = 'bff-btn-tip';
+
+  // 88x88 与B站自带图标同视口，尺寸由原生 .bpx-common-svg-icon 规则控制；
+  // 墨迹占 66x50（B站原生图标实测填充率 67%~82%，过大会显得比相邻图标粗重）
+  const ICON_SVG =
+    '<span class="bpx-common-svg-icon">' +
+    '<svg viewBox="0 0 88 88" aria-hidden="true">' +
+    '<path d="M11 19L41 44L11 69Z"></path>' +
+    '<path d="M47 19L77 44L47 69Z"></path>' +
+    '</svg>' +
+    '</span>';
+
+  const KEY_LABELS = {
+    arrowright: '→',
+    arrowleft: '←',
+    arrowup: '↑',
+    arrowdown: '↓',
+    space: 'Space',
+    enter: 'Enter',
+    tab: 'Tab',
+    backspace: 'Backspace',
+    delete: 'Delete',
+    insert: 'Insert',
+    home: 'Home',
+    end: 'End',
+    pageup: 'PageUp',
+    pagedown: 'PageDown',
+    escape: 'Esc',
+  };
+
+  function shortcutLabel(sc) {
+    if (!sc || !sc.key) return '';
+    const key = String(sc.key).toLowerCase();
+    const parts = [];
+    if (sc.ctrl) parts.push('Ctrl');
+    if (sc.alt) parts.push('Alt');
+    if (sc.shift) parts.push('Shift');
+    parts.push(KEY_LABELS[key] || (key.length === 1 ? key.toUpperCase() : key));
+    return parts.join('+');
+  }
 
   let config = { seconds: DEFAULTS.seconds, shortcut: { ...DEFAULTS.shortcut } };
 
@@ -52,21 +92,22 @@
   function updateButtonLabel(btn) {
     btn = btn || document.querySelector('.' + BTN_CLASS);
     if (!btn) return;
-    const text = btn.querySelector('.' + BTN_TEXT_CLASS);
-    if (text) text.textContent = `快进${config.seconds}s`;
-    btn.title = `一键快进 ${config.seconds} 秒`;
+    const tip = btn.querySelector('.' + TIP_CLASS);
+    const sc = shortcutLabel(config.shortcut);
+    const label = `快进${config.seconds}s` + (sc ? ` (${sc})` : '');
+    if (tip) tip.textContent = label;
+    btn.setAttribute('aria-label', `一键快进 ${config.seconds} 秒${sc ? '，快捷键 ' + sc : ''}`);
   }
 
+  // 结构照搬B站原生图标按钮（参考「小电视空降助手」）：尺寸与悬停提亮交给原生CSS，
+  // 控制栏里只占一个标准图标位，文字通过悬浮提示展示
   function buildButton() {
     const btn = document.createElement('div');
     btn.className = `bpx-player-ctrl-btn ${BTN_CLASS}`;
-    btn.title = `一键快进 ${config.seconds} 秒`;
+    btn.setAttribute('role', 'button');
     btn.innerHTML =
-      '<svg class="bff-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">' +
-      '<path d="M4.5 5.2l7.6 6.8-7.6 6.8V5.2z"></path>' +
-      '<path d="M12.9 5.2l7.6 6.8-7.6 6.8V5.2z"></path>' +
-      '</svg>' +
-      `<span class="${BTN_TEXT_CLASS}"></span>`;
+      `<div class="bpx-player-ctrl-btn-icon ${ICON_CLASS}">${ICON_SVG}</div>` +
+      `<div class="${TIP_CLASS}"></div>`;
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       e.preventDefault();
